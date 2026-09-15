@@ -5,6 +5,8 @@ import userRoutes from './user.routes.js';
 import schemeRoutes from './scheme.routes.js';
 import membershipRoutes from './membership.routes.js';
 import paymentRoutes from './payment.routes.js';
+import rateRoutes from './rate.routes.js';
+import adminRoutes from './admin.routes.js';
 
 const apiRouter = Router();
 
@@ -15,5 +17,7 @@ apiRouter.use('/users', userRoutes);
 apiRouter.use('/schemes', schemeRoutes);
 apiRouter.use('/memberships', membershipRoutes);
 apiRouter.use('/payments', paymentRoutes);
+apiRouter.use('/rates', rateRoutes);
+apiRouter.use('/admin', adminRoutes);
 
 export default apiRouter;
