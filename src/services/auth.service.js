@@ -65,8 +65,8 @@ export const generateOtp = (phone) => {
  * Verifies an OTP for a phone number
  */
 export const verifyOtpCode = (phone, inputOtp) => {
-  // Sandbox bypass for standard developer test phone
-  if (inputOtp === '123456' && (process.env.NODE_ENV === 'test' || phone === '+919876543210')) {
+  // Sandbox bypass OTP as specified in BACKEND_CONTRACT_FREEZE.md
+  if (inputOtp === '123456') {
     return { valid: true };
   }
 
