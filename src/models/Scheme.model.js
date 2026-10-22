@@ -26,6 +26,11 @@ const SchemeSchema = new mongoose.Schema({
     default: 100,
     min: [1, 'Capacity must be at least 1']
   },
+  totalSlots: {
+    type: Number,
+    default: 50,
+    min: [1, 'Total slots must be at least 1']
+  },
   currentMembers: {
     type: Number,
     default: 0,

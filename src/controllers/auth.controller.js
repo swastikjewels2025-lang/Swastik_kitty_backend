@@ -30,10 +30,17 @@ export const sendOtpController = async (req, res, next) => {
     // In production, this calls MSG91 / Twilio SMS gateway
     console.log(`[SMS Gateway] Dispatched OTP ${otp} to ${phone} (Valid for ${expiresInSeconds}s)`);
 
+    const existingUser = await User.findOne({ phone: phone.trim() });
+    const isExistingUser = !!(existingUser && existingUser.name && existingUser.name !== 'Patron');
+    const userName = isExistingUser ? existingUser.name : null;
+
     return res.ok({
       phone,
-      expiresInSeconds
-    }, 'OTP sent successfully.');
+      expiresInSeconds,
+      isExistingUser,
+      userName,
+      message: isExistingUser ? `Welcome back, ${userName}!` : 'OTP sent successfully.'
+    }, isExistingUser ? `Welcome back, ${userName}!` : 'OTP sent successfully.');
   } catch (error) {
     next(error);
   }
@@ -73,6 +80,89 @@ export const verifyOtpController = async (req, res, next) => {
         role: 'CUSTOMER',
         tier: 'Standard Member'
       });
+    } else if (!user.name || user.name === 'Patron') {
+      isNewUser = true;
+    }
+
+    const token = issueJwtToken(user);
+
+    return res.ok({
+      token,
+      isNewUser,
+      user: {
+        id: user._id.toString(),
+        name: user.name || '',
+        surname: user.surname || '',
+        email: user.email || '',
+        phone: user.phone,
+        dateOfBirth: user.dateOfBirth ? user.dateOfBirth.toISOString() : null,
+        address: user.address || '',
+        city: user.city || '',
+        pincode: user.pincode || '',
+        nominee: user.nominee || { name: '', relationship: '', phone: '' },
+        nomineeName: user.nominee?.name || '',
+        nomineeRelationship: user.nominee?.relationship || '',
+        nomineePhone: user.nominee?.phone || '',
+        role: user.role,
+        tier: user.tier,
+        kyc: {
+          isVerified: user.kyc?.isVerified || false,
+          documentType: user.kyc?.documentType || null,
+          documentNumberMasked: user.kyc?.documentNumberMasked || null,
+          documentUrl: user.kyc?.documentUrl || null,
+          status: user.kyc?.status || 'NOT_SUBMITTED'
+        }
+      }
+    }, isNewUser ? 'Authentication successful.' : `Welcome back, ${user.name}!`);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const logoutController = async (req, res) => {
+  return res.ok({}, 'Logged out successfully.');
+};
+
+export const googleAuthExchangeController = async (req, res, next) => {
+  try {
+    const { idToken, email, name, phone } = req.body;
+
+    if (!idToken || !email) {
+      return res.fail('Google idToken and email are required.', 400, 'VALIDATION_ERROR');
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.fail('Invalid email format.', 400, 'VALIDATION_ERROR', { field: 'email' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const queryConditions = [{ email: normalizedEmail }];
+    if (phone) {
+      queryConditions.push({ phone: phone.trim() });
+    }
+
+    let user = await User.findOne({ $or: queryConditions });
+    let isNewUser = false;
+
+    if (!user) {
+      isNewUser = true;
+      const assignedPhone = phone && isValidIndianPhone(phone) 
+        ? phone.trim() 
+        : `+9190${Date.now().toString().slice(-8)}`;
+
+      user = await User.create({
+        name: name ? name.trim() : 'Google Patron',
+        email: normalizedEmail,
+        phone: assignedPhone,
+        role: 'CUSTOMER',
+        tier: 'Standard Member'
+      });
+    } else {
+      if (!user.email) {
+        user.email = normalizedEmail;
+        await user.save();
+      }
     }
 
     const token = issueJwtToken(user);
@@ -83,6 +173,7 @@ export const verifyOtpController = async (req, res, next) => {
       user: {
         id: user._id.toString(),
         name: user.name,
+        email: user.email,
         phone: user.phone,
         role: user.role,
         tier: user.tier,
@@ -94,12 +185,55 @@ export const verifyOtpController = async (req, res, next) => {
           status: user.kyc?.status || 'NOT_SUBMITTED'
         }
       }
-    }, 'Authentication successful.');
+    }, 'Google authentication successful.');
   } catch (error) {
     next(error);
   }
 };
 
-export const logoutController = async (req, res) => {
-  return res.ok({}, 'Logged out successfully.');
+/**
+ * Direct Administrator Login with credentials (e.g. admin / admin123)
+ */
+export const adminLoginController = async (req, res, next) => {
+  try {
+    const { identifier, password } = req.body;
+
+    if (!identifier || !password) {
+      return res.fail('Username/identifier and password are required.', 400, 'VALIDATION_ERROR');
+    }
+
+    const isValidAdmin = (identifier.trim().toLowerCase() === 'admin' || identifier.trim() === '+919999999999') && password === 'admin123';
+
+    if (!isValidAdmin) {
+      return res.fail('Invalid administrative credentials.', 401, 'INVALID_CREDENTIALS');
+    }
+
+    let admin = await User.findOne({ phone: '+919999999999' });
+    if (!admin) {
+      admin = await User.create({
+        name: 'Admin',
+        phone: '+919999999999',
+        role: 'SUPER_ADMIN',
+        tier: 'Vault Administrator'
+      });
+    }
+
+    const token = issueJwtToken(admin);
+
+    return res.ok({
+      token,
+      user: {
+        id: admin._id.toString(),
+        name: admin.name,
+        username: 'admin',
+        phone: admin.phone,
+        role: 'admin',
+        tier: admin.tier
+      }
+    }, 'Administrator logged in successfully.');
+  } catch (error) {
+    next(error);
+  }
 };
+
+

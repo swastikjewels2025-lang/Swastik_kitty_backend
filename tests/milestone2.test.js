@@ -14,14 +14,14 @@ describe('💎 Milestone 2: Mongoose Database Models & Indexes Tests', () => {
   });
 
   beforeEach(async () => {
-    await clearTestDb();
+    await clearTestDb(); 
   });
 
   it('2.1 User Model: should create customer and enforce phone uniqueness', async () => {
     const user1 = await User.create({
       name: 'Rihan Patel',
       phone: '+919876543210'
-    });
+    }); 
 
     assert.ok(user1._id);
     assert.equal(user1.name, 'Rihan Patel');
@@ -68,6 +68,7 @@ describe('💎 Milestone 2: Mongoose Database Models & Indexes Tests', () => {
   });
 
   it('2.3 Membership Model: should generate chitToken virtual and block duplicate tokens', async () => {
+    await Membership.init();
     const user = await User.create({ name: 'Aarav', phone: '+919999911111' });
     const scheme = await Scheme.create({
       name: 'Royal Bridal Kitty',

@@ -38,7 +38,8 @@ export const createSchemeController = async (req, res, next) => {
       targetAmount, 
       durationMonths = 12, 
       monthlyInstallment, 
-      maxCapacity = 100, 
+      maxCapacity, 
+      totalSlots = 50,
       benefits, 
       hasBonusMonth = true, 
       bonusAmount 
@@ -50,13 +51,15 @@ export const createSchemeController = async (req, res, next) => {
 
     const calculatedInstallment = monthlyInstallment || Math.round(targetAmount / durationMonths);
     const calculatedBonus = bonusAmount !== undefined ? bonusAmount : calculatedInstallment;
+    const finalSlots = totalSlots ? parseInt(totalSlots, 10) : 50;
 
     const scheme = await Scheme.create({
       name,
       targetAmount,
-      durationMonths,
+      durationMonths: parseInt(durationMonths, 10),
       monthlyInstallment: calculatedInstallment,
-      maxCapacity,
+      maxCapacity: maxCapacity ? parseInt(maxCapacity, 10) : finalSlots,
+      totalSlots: finalSlots,
       benefits: benefits || [
         '1 Month Free: 11 Paid + 12th Month 100% Jeweler Bonus',
         '25% Flat Discount on Jewellery Making Charges',
@@ -79,3 +82,43 @@ export const createSchemeController = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getSchemeNumbersController = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const scheme = await Scheme.findById(id);
+    if (!scheme) {
+      return res.fail('Scheme not found.', 404, 'SCHEME_NOT_FOUND');
+    }
+
+    const { Membership } = await import('../models/Membership.model.js');
+    const existingMemberships = await Membership.find({ schemeId: scheme._id });
+    const bookedMap = new Map();
+    existingMemberships.forEach(m => {
+      const num = m.kittyNumber || m.tokenNumber;
+      bookedMap.set(num, m.chitToken || `#SW-${String(num).padStart(3, '0')}`);
+    });
+
+    const totalSlots = scheme.totalSlots || 50;
+    const numbers = [];
+
+    for (let i = 1; i <= totalSlots; i++) {
+      const isBooked = bookedMap.has(i);
+      numbers.push({
+        number: i,
+        label: String(i).padStart(2, '0'),
+        status: isBooked ? 'BOOKED' : 'AVAILABLE',
+        ...(isBooked ? { chitToken: bookedMap.get(i) } : {})
+      });
+    }
+
+    return res.ok({
+      schemeId: scheme._id.toString(),
+      totalSlots,
+      numbers
+    }, 'Scheme number slots retrieved.');
+  } catch (error) {
+    next(error);
+  }
+};
+

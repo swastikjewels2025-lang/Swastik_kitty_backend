@@ -7,6 +7,9 @@ import membershipRoutes from './membership.routes.js';
 import paymentRoutes from './payment.routes.js';
 import rateRoutes from './rate.routes.js';
 import adminRoutes from './admin.routes.js';
+import bookingRoutes from './booking.routes.js';
+import notificationRoutes from './notification.routes.js';
+import coinRoutes from './coin.routes.js';
 
 const apiRouter = Router();
 
@@ -19,5 +22,8 @@ apiRouter.use('/memberships', membershipRoutes);
 apiRouter.use('/payments', paymentRoutes);
 apiRouter.use('/rates', rateRoutes);
 apiRouter.use('/admin', adminRoutes);
+apiRouter.use('/bookings', bookingRoutes);
+apiRouter.use('/notifications', notificationRoutes);
+apiRouter.use('/coins', coinRoutes);
 
 export default apiRouter;

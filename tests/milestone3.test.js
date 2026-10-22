@@ -126,6 +126,7 @@ describe('💎 Milestone 3: Authentication, Security & KYC Module Tests', () => 
       .post('/api/v1/auth/verify-otp')
       .send({ phone: '+919876543210', otp: '123456' });
 
+      
     const token = loginRes.body.data.token;
 
     const logoutRes = await request(app)

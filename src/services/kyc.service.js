@@ -23,7 +23,7 @@ export const kycUpload = multer({
  */
 export const validateDocumentNumber = (type, number) => {
   if (!number || typeof number !== 'string') return false;
-  const clean = number.trim().toUpperCase();
+  const clean = number.replace(/[\s-]/g, '').trim().toUpperCase();
 
   if (type === 'AADHAAR') {
     // 12-digit numeric
@@ -39,7 +39,7 @@ export const validateDocumentNumber = (type, number) => {
  * Masks document number for customer privacy
  */
 export const maskDocumentNumber = (type, number) => {
-  const clean = number.trim().toUpperCase();
+  const clean = number.replace(/[\s-]/g, '').trim().toUpperCase();
   if (type === 'AADHAAR') {
     return `XXXX XXXX ${clean.slice(-4)}`;
   } else if (type === 'PAN') {

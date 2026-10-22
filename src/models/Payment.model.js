@@ -20,9 +20,17 @@ const PaymentSchema = new mongoose.Schema({
   },
   monthFor: {
     type: Number,
-    required: [true, 'Target installment month is required'],
     min: [1, 'Month must be between 1 and 12'],
-    max: [12, 'Month cannot exceed 12']
+    max: [12, 'Month cannot exceed 12'],
+    default: function () {
+      return this.monthsPaid && this.monthsPaid.length > 0 ? this.monthsPaid[0] : 1;
+    }
+  },
+  monthsPaid: {
+    type: [Number],
+    default: function () {
+      return this.monthFor ? [this.monthFor] : [];
+    }
   },
   paymentMethod: {
     type: String,

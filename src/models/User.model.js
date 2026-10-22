@@ -51,6 +51,21 @@ const UserSchema = new mongoose.Schema({
     required: [true, 'Customer name is required'],
     trim: true
   },
+  surname: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  email: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    default: null
+  },
+  dateOfBirth: {
+    type: Date,
+    default: null
+  },
   phone: {
     type: String,
     required: [true, 'Mobile phone number is required'],
@@ -66,6 +81,38 @@ const UserSchema = new mongoose.Schema({
   tier: {
     type: String,
     default: 'Standard Member'
+  },
+  address: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  city: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  pincode: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  nominee: {
+    name: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    relationship: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    phone: {
+      type: String,
+      trim: true,
+      default: ''
+    }
   },
   kyc: {
     type: KycSubSchema,

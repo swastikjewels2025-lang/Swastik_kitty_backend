@@ -17,6 +17,12 @@ const MembershipSchema = new mongoose.Schema({
     type: Number,
     required: [true, 'Chit token number is required']
   },
+  kittyNumber: {
+    type: Number,
+    default: function () {
+      return this.tokenNumber;
+    }
+  },
   customMonthlyEmi: {
     type: Number,
     required: [true, 'Custom monthly EMI is required']
@@ -38,6 +44,14 @@ const MembershipSchema = new mongoose.Schema({
     enum: ['ACTIVE', 'WINNER', 'COMPLETED', 'DEFAULTED'],
     default: 'ACTIVE',
     index: true
+  },
+  isSettledEarly: {
+    type: Boolean,
+    default: false
+  },
+  settledAt: {
+    type: Date,
+    default: null
   },
   winMonth: {
     type: Number,
