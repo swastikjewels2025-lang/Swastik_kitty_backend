@@ -137,4 +137,64 @@ describe('💎 Milestone 3: Authentication, Security & KYC Module Tests', () => 
     assert.equal(logoutRes.body.success, true);
   });
 
+  it('3.8 Google Sign-In: should exchange Google credentials and return JWT with user', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/google')
+      .send({
+        idToken: 'mock_google_id_token_test_123',
+        email: 'swastik.patron@gmail.com',
+        name: 'Aarav Sharma',
+        googleId: 'google_sub_123456'
+      });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.success, true);
+    assert.ok(res.body.data.token);
+    assert.equal(res.body.data.user.email, 'swastik.patron@gmail.com');
+    assert.equal(res.body.data.user.authProvider, 'GOOGLE');
+  });
+
+  it('3.9 Apple Sign-In: should exchange Apple credentials and return JWT with user', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/apple')
+      .send({
+        identityToken: 'mock_apple_identity_token_test_456',
+        userIdentifier: 'apple_user_id_7890',
+        email: 'aarav@privaterelay.appleid.com',
+        name: 'Aarav Apple'
+      });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.success, true);
+    assert.ok(res.body.data.token);
+    assert.equal(res.body.data.user.authProvider, 'APPLE');
+  });
+
+  it('3.10 Link Phone: should verify OTP and bind Indian mobile number to account', async () => {
+    // 1. Authenticate with Google
+    const googleRes = await request(app)
+      .post('/api/v1/auth/google')
+      .send({
+        idToken: 'mock_google_token_link',
+        email: 'link.patron@gmail.com',
+        name: 'Link Patron',
+        googleId: 'google_link_999'
+      });
+
+    const token = googleRes.body.data.token;
+
+    // 2. Link Phone number with OTP
+    const linkRes = await request(app)
+      .post('/api/v1/auth/link-phone')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        phone: '+919876500000',
+        otp: '123456'
+      });
+
+    assert.equal(linkRes.status, 200);
+    assert.equal(linkRes.body.success, true);
+    assert.equal(linkRes.body.data.user.phone, '+919876500000');
+  });
+
 });

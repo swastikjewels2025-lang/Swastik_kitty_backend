@@ -77,8 +77,9 @@ MembershipSchema.virtual('chitToken').get(function () {
   return `#SW-${String(this.tokenNumber).padStart(3, '0')}`;
 });
 
-// Compound unique indexes
+// Compound indexes: tokenNumber is globally unique per scheme; patron can hold distinct slots in the same scheme
 MembershipSchema.index({ schemeId: 1, tokenNumber: 1 }, { unique: true });
-MembershipSchema.index({ userId: 1, schemeId: 1 }, { unique: true });
+MembershipSchema.index({ userId: 1, schemeId: 1, tokenNumber: 1 }, { unique: true });
 
 export const Membership = mongoose.model('Membership', MembershipSchema);
+

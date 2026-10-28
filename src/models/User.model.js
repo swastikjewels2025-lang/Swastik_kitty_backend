@@ -68,10 +68,28 @@ const UserSchema = new mongoose.Schema({
   },
   phone: {
     type: String,
-    required: [true, 'Mobile phone number is required'],
+    sparse: true,
     unique: true,
     trim: true,
+    index: true,
+    default: null
+  },
+  googleId: {
+    type: String,
+    default: null,
+    sparse: true,
     index: true
+  },
+  appleId: {
+    type: String,
+    default: null,
+    sparse: true,
+    index: true
+  },
+  authProvider: {
+    type: String,
+    enum: ['PHONE', 'GOOGLE', 'APPLE'],
+    default: 'PHONE'
   },
   role: {
     type: String,

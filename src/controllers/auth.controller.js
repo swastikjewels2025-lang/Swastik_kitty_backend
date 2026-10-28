@@ -125,7 +125,7 @@ export const logoutController = async (req, res) => {
 
 export const googleAuthExchangeController = async (req, res, next) => {
   try {
-    const { idToken, email, name, phone } = req.body;
+    const { idToken, email, name, phone, googleId } = req.body;
 
     if (!idToken || !email) {
       return res.fail('Google idToken and email are required.', 400, 'VALIDATION_ERROR');
@@ -138,7 +138,10 @@ export const googleAuthExchangeController = async (req, res, next) => {
 
     const normalizedEmail = email.trim().toLowerCase();
     const queryConditions = [{ email: normalizedEmail }];
-    if (phone) {
+    if (googleId) {
+      queryConditions.push({ googleId: googleId.trim() });
+    }
+    if (phone && isValidIndianPhone(phone)) {
       queryConditions.push({ phone: phone.trim() });
     }
 
@@ -154,27 +157,44 @@ export const googleAuthExchangeController = async (req, res, next) => {
       user = await User.create({
         name: name ? name.trim() : 'Google Patron',
         email: normalizedEmail,
+        googleId: googleId ? googleId.trim() : null,
         phone: assignedPhone,
+        authProvider: 'GOOGLE',
         role: 'CUSTOMER',
         tier: 'Standard Member'
       });
     } else {
+      let shouldSave = false;
       if (!user.email) {
         user.email = normalizedEmail;
+        shouldSave = true;
+      }
+      if (googleId && !user.googleId) {
+        user.googleId = googleId.trim();
+        shouldSave = true;
+      }
+      if (!user.authProvider) {
+        user.authProvider = 'GOOGLE';
+        shouldSave = true;
+      }
+      if (shouldSave) {
         await user.save();
       }
     }
 
+    const requiresPhoneVerification = !user.phone || !isValidIndianPhone(user.phone) || user.phone.startsWith('+9190');
     const token = issueJwtToken(user);
 
     return res.ok({
       token,
       isNewUser,
+      requiresPhoneVerification,
       user: {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
-        phone: user.phone,
+        phone: user.phone || '',
+        authProvider: user.authProvider || 'GOOGLE',
         role: user.role,
         tier: user.tier,
         kyc: {
@@ -186,6 +206,158 @@ export const googleAuthExchangeController = async (req, res, next) => {
         }
       }
     }, 'Google authentication successful.');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const appleAuthExchangeController = async (req, res, next) => {
+  try {
+    const { identityToken, userIdentifier, email, name, phone } = req.body;
+
+    if (!identityToken || !userIdentifier) {
+      return res.fail('Apple identityToken and userIdentifier are required.', 400, 'VALIDATION_ERROR');
+    }
+
+    const queryConditions = [{ appleId: userIdentifier.trim() }];
+    if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      queryConditions.push({ email: email.trim().toLowerCase() });
+    }
+    if (phone && isValidIndianPhone(phone)) {
+      queryConditions.push({ phone: phone.trim() });
+    }
+
+    let user = await User.findOne({ $or: queryConditions });
+    let isNewUser = false;
+
+    if (!user) {
+      isNewUser = true;
+      const assignedPhone = phone && isValidIndianPhone(phone) 
+        ? phone.trim() 
+        : `+9190${Date.now().toString().slice(-8)}`;
+
+      user = await User.create({
+        name: name ? name.trim() : 'Apple Patron',
+        email: email ? email.trim().toLowerCase() : null,
+        appleId: userIdentifier.trim(),
+        phone: assignedPhone,
+        authProvider: 'APPLE',
+        role: 'CUSTOMER',
+        tier: 'Standard Member'
+      });
+    } else {
+      let shouldSave = false;
+      if (!user.appleId) {
+        user.appleId = userIdentifier.trim();
+        shouldSave = true;
+      }
+      if (email && !user.email) {
+        user.email = email.trim().toLowerCase();
+        shouldSave = true;
+      }
+      if (!user.authProvider) {
+        user.authProvider = 'APPLE';
+        shouldSave = true;
+      }
+      if (shouldSave) {
+        await user.save();
+      }
+    }
+
+    const requiresPhoneVerification = !user.phone || !isValidIndianPhone(user.phone) || user.phone.startsWith('+9190');
+    const token = issueJwtToken(user);
+
+    return res.ok({
+      token,
+      isNewUser,
+      requiresPhoneVerification,
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email || '',
+        phone: user.phone || '',
+        authProvider: user.authProvider || 'APPLE',
+        role: user.role,
+        tier: user.tier,
+        kyc: {
+          isVerified: user.kyc?.isVerified || false,
+          documentType: user.kyc?.documentType || null,
+          documentNumberMasked: user.kyc?.documentNumberMasked || null,
+          documentUrl: user.kyc?.documentUrl || null,
+          status: user.kyc?.status || 'NOT_SUBMITTED'
+        }
+      }
+    }, 'Apple authentication successful.');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const linkPhoneController = async (req, res, next) => {
+  try {
+    const { phone, otp } = req.body;
+
+    if (!phone || !isValidIndianPhone(phone)) {
+      return res.fail('Invalid phone number format.', 400, 'VALIDATION_ERROR', { field: 'phone' });
+    }
+
+    if (!otp || typeof otp !== 'string' || otp.trim().length !== 6) {
+      return res.fail('OTP must be a 6-digit number.', 400, 'VALIDATION_ERROR', { field: 'otp' });
+    }
+
+    const verification = verifyOtpCode(phone, otp.trim());
+    if (!verification.valid) {
+      return res.fail(verification.message, 400, verification.code);
+    }
+
+    const cleanPhone = phone.trim();
+
+    // Check if another user already owns this phone
+    const existingWithPhone = await User.findOne({ phone: cleanPhone });
+    if (existingWithPhone && existingWithPhone._id.toString() !== req.user.id.toString()) {
+      if (req.user.googleId && !existingWithPhone.googleId) {
+        existingWithPhone.googleId = req.user.googleId;
+      }
+      if (req.user.appleId && !existingWithPhone.appleId) {
+        existingWithPhone.appleId = req.user.appleId;
+      }
+      await existingWithPhone.save();
+
+      const token = issueJwtToken(existingWithPhone);
+      return res.ok({
+        token,
+        user: {
+          id: existingWithPhone._id.toString(),
+          name: existingWithPhone.name,
+          email: existingWithPhone.email || '',
+          phone: existingWithPhone.phone,
+          role: existingWithPhone.role,
+          tier: existingWithPhone.tier
+        }
+      }, 'Phone linked successfully.');
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.fail('User not found.', 404, 'NOT_FOUND');
+    }
+
+    user.phone = cleanPhone;
+    await user.save();
+
+    const token = issueJwtToken(user);
+
+    return res.ok({
+      token,
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email || '',
+        phone: user.phone,
+        role: user.role,
+        tier: user.tier
+      }
+    }, 'Phone linked successfully.');
   } catch (error) {
     next(error);
   }
