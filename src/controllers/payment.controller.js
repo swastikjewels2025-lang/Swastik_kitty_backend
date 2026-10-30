@@ -9,7 +9,7 @@ import {
 
 export const initiatePaymentController = async (req, res, next) => {
   try {
-    const { membershipId, monthFor, months, paymentMethod } = req.body;
+    const { membershipId, monthFor, months, monthsCount, paymentMethod } = req.body;
 
     if (!membershipId || (!monthFor && (!months || months.length === 0))) {
       return res.fail('Membership ID and installment month(s) are required.', 400, 'VALIDATION_ERROR');
@@ -20,6 +20,7 @@ export const initiatePaymentController = async (req, res, next) => {
       userId: req.user._id,
       monthFor,
       months,
+      monthsCount,
       paymentMethod: paymentMethod || 'ONLINE'
     });
 

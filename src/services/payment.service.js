@@ -8,7 +8,7 @@ import { generateReceiptPdf } from './receipt.service.js';
 /**
  * Initiates GoKwik checkout order and creates PENDING payment record
  */
-export const initiatePaymentOrder = async ({ membershipId, userId, monthFor, months, paymentMethod = 'ONLINE' }) => {
+export const initiatePaymentOrder = async ({ membershipId, userId, monthFor, months, monthsCount, paymentMethod = 'ONLINE' }) => {
   const membership = await Membership.findOne({
     _id: membershipId,
     userId,
@@ -25,6 +25,9 @@ export const initiatePaymentOrder = async ({ membershipId, userId, monthFor, mon
   let targetMonths = [];
   if (months && Array.isArray(months) && months.length > 0) {
     targetMonths = months.map(m => parseInt(m, 10));
+  } else if (monthsCount && parseInt(monthsCount, 10) > 1 && monthFor !== undefined && monthFor !== null) {
+    const count = parseInt(monthsCount, 10);
+    targetMonths = Array.from({ length: count }, (_, i) => parseInt(monthFor, 10) + i);
   } else if (monthFor !== undefined && monthFor !== null) {
     targetMonths = [parseInt(monthFor, 10)];
   } else {
