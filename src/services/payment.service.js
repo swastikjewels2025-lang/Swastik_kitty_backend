@@ -119,8 +119,17 @@ export const initiatePaymentOrder = async ({ membershipId, userId, monthFor, mon
     }
   }
 
-  // 5. Authoritative server calculation
-  const amount = targetMonths.length * membership.customMonthlyEmi;
+  // 5. Authoritative server calculation (aggregating all slots held in this scheme)
+  const schemeMemberships = await Membership.find({
+    userId,
+    schemeId: membership.schemeId,
+    status: { $in: ['ACTIVE', 'WINNER'] }
+  });
+  const totalMonthlyEmi = schemeMemberships.length > 0
+    ? schemeMemberships.reduce((sum, m) => sum + (m.customMonthlyEmi || scheme.monthlyInstallment), 0)
+    : membership.customMonthlyEmi;
+
+  const amount = targetMonths.length * totalMonthlyEmi;
   const orderId = `gokwik_ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   const payment = await Payment.create({
@@ -243,30 +252,49 @@ export const processPaymentWebhook = async (webhookData) => {
       await payment.save();
     }
 
-    // 2. Increment Membership totalPaidAmount and accumulatedGoldGrams
+    // 2. Increment Membership totalPaidAmount and accumulatedGoldGrams across all enrolled slots in this scheme
+    const userMembership = await Membership.findById(payment.membershipId).populate('schemeId');
+    const schemeMemberships = userMembership ? await Membership.find({
+      userId: payment.userId,
+      schemeId: userMembership.schemeId,
+      status: { $in: ['ACTIVE', 'WINNER'] }
+    }) : [];
+
+    const slotCount = schemeMemberships.length > 0 ? schemeMemberships.length : 1;
+    const splitPaid = payment.amount / slotCount;
+    const splitGrams = parseFloat((goldGrams / slotCount).toFixed(3));
+
     const updateQuery = {
       $inc: {
-        totalPaidAmount: payment.amount,
-        accumulatedGoldGrams: goldGrams
+        totalPaidAmount: splitPaid,
+        accumulatedGoldGrams: splitGrams
       }
     };
 
+    const targetMembershipIds = schemeMemberships.length > 0
+      ? schemeMemberships.map(m => m._id)
+      : [payment.membershipId];
+
     if (session) {
-      await Membership.updateOne({ _id: payment.membershipId }, updateQuery, { session });
+      await Membership.updateMany({ _id: { $in: targetMembershipIds } }, updateQuery, { session });
       await session.commitTransaction();
     } else {
-      await Membership.updateOne({ _id: payment.membershipId }, updateQuery);
+      await Membership.updateMany({ _id: { $in: targetMembershipIds } }, updateQuery);
     }
 
     // 3. Asynchronously generate PDF receipt
     const user = await User.findById(payment.userId);
-    const membership = await Membership.findById(payment.membershipId).populate('schemeId');
+    const membership = userMembership || await Membership.findById(payment.membershipId).populate('schemeId');
+
+    const receiptChitToken = slotCount > 1
+      ? `${slotCount} Tokens (${schemeMemberships.map(m => m.chitToken || '#SW-' + String(m.tokenNumber).padStart(3, '0')).join(', ')})`
+      : membership.chitToken;
 
     generateReceiptPdf({
       receiptId: payment._id.toString().slice(-6).toUpperCase(),
       customerName: user ? user.name : 'Valued Patron',
       customerPhone: user ? user.phone : '+91XXXXXXXXXX',
-      chitToken: membership.chitToken,
+      chitToken: receiptChitToken,
       schemeName: membership.schemeId ? membership.schemeId.name : 'Swastik Suvarna Varsha',
       monthFor: payment.monthFor,
       amount: payment.amount,
