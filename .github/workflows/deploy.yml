@@ -35,7 +35,7 @@ jobs:
             # 2. Install backend dependencies and restart PM2
             echo "⚙️ Updating backend services..."
             npm install --omit=dev
-            pm2 restart swastik-backend || pm2 start src/server.js --name "swastik-backend"
+            pm2 restart swastik-kitty-backend || pm2 start src/server.js --name "swastik-kitty-backend"
             pm2 save
 
             # 3. Build Admin Portal
@@ -50,4 +50,3 @@ jobs:
             sudo systemctl reload nginx
 
             echo "✅ Deployment completed successfully!"
-
