@@ -1,0 +1,53 @@
+name: Deploy Swastik Kitty to Hostinger VPS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Ubuntu VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            echo "🚀 Starting deployment on Hostinger VPS..."
+
+            # Navigate to project root
+            cd /var/www/swastik-kitty
+
+            # 1. Pull latest code from main
+            echo "📥 Pulling latest code..."
+            git pull origin main
+
+            # 2. Install backend dependencies and restart PM2
+            echo "⚙️ Updating backend services..."
+            npm install --omit=dev
+            pm2 restart swastik-backend || pm2 start src/server.js --name "swastik-backend"
+            pm2 save
+
+            # 3. Build Admin Portal
+            echo "🖥️ Building React/Vite Admin Portal..."
+            cd admin
+            npm install
+            npm run build
+
+            # 4. Test and reload Nginx
+            echo "🌐 Reloading Nginx..."
+            sudo nginx -t
+            sudo systemctl reload nginx
+
+            echo "✅ Deployment completed successfully!"
+
